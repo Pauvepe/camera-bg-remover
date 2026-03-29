@@ -47,6 +47,11 @@ const S = {
   running: false,
   maskData: null,
 
+  // Mask auto-detect
+  maskIdx: 0,
+  maskInvert: false,
+  maskChecked: false,
+
   // FPS
   fpsFrames: 0,
   fpsLast: 0,
@@ -163,6 +168,7 @@ async function startCam() {
   }
 
   S.maskData = new ImageData(S.pw, S.ph);
+  S.maskChecked = false; // Re-detect mask orientation on new camera
 }
 
 // ===================== SEGMENTER =====================
@@ -171,7 +177,7 @@ async function initSegmenter() {
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
   );
 
-  S.segmenter = await ImageSegmenter.createFromOptions(vision, {
+  const opts = {
     baseOptions: {
       modelAssetPath:
         "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
@@ -180,7 +186,16 @@ async function initSegmenter() {
     runningMode: "VIDEO",
     outputCategoryMask: false,
     outputConfidenceMasks: true,
-  });
+  };
+
+  try {
+    S.segmenter = await ImageSegmenter.createFromOptions(vision, opts);
+  } catch {
+    // GPU not available, fallback to CPU
+    console.warn("GPU delegate failed, falling back to CPU");
+    opts.baseOptions.delegate = "CPU";
+    S.segmenter = await ImageSegmenter.createFromOptions(vision, opts);
+  }
 }
 
 // ===================== RENDER LOOP =====================
@@ -214,11 +229,33 @@ function process(ts) {
   }
 
   if (result.confidenceMasks && result.confidenceMasks.length > 0) {
-    // Use the first confidence mask (person confidence for selfie_segmenter)
-    const cmask = result.confidenceMasks[0];
+    // Auto-detect which mask is person on first frame
+    if (!S.maskChecked) {
+      S.maskChecked = true;
+      const masks = result.confidenceMasks;
+      // Check center pixel of each mask to find person
+      const centerIdx = Math.floor((pw * ph) / 2) + Math.floor(pw / 2);
+      if (masks.length === 1) {
+        const d = masks[0].getAsFloat32Array();
+        // If center is low, person might be inverted
+        S.maskInvert = d[centerIdx] < 0.3;
+        S.maskIdx = 0;
+      } else {
+        // Pick mask where center pixel is highest (person is usually in center)
+        let bestIdx = 0, bestVal = -1;
+        for (let mi = 0; mi < masks.length; mi++) {
+          const d = masks[mi].getAsFloat32Array();
+          if (d[centerIdx] > bestVal) { bestVal = d[centerIdx]; bestIdx = mi; }
+        }
+        S.maskIdx = bestIdx;
+        S.maskInvert = bestVal < 0.3;
+      }
+      console.log(`Mask: idx=${S.maskIdx}, invert=${S.maskInvert}, masks=${masks.length}`);
+    }
+
+    const cmask = result.confidenceMasks[S.maskIdx];
     const data = cmask.getAsFloat32Array();
     buildPerson(data, pw, ph);
-    // Close all masks
     for (const m of result.confidenceMasks) m.close();
   }
 
@@ -231,7 +268,7 @@ function buildPerson(mask, w, h) {
 
   // Build alpha mask from confidence values
   for (let i = 0; i < mask.length; i++) {
-    let a = mask[i];
+    let a = S.maskInvert ? 1 - mask[i] : mask[i];
     // Soft threshold — smooth transition
     if (a > MASK_THRESHOLD_HI) a = 1;
     else if (a < MASK_THRESHOLD_LO) a = 0;
