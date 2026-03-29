@@ -1,0 +1,87 @@
+*{margin:0;padding:0;box-sizing:border-box}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+
+#camera,#bg-video,#file-image,#file-video{
+  position:absolute;
+  width:1px;height:1px;
+  opacity:0;pointer-events:none;
+  overflow:hidden;
+}
+
+#output{
+  position:fixed;top:0;left:0;
+  width:100%;height:100%;
+  display:block;
+  touch-action:none;
+  -webkit-touch-callout:none;
+}
+
+/* Loading */
+#loading{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:#000;color:#fff;
+  z-index:100;
+  transition:opacity .4s ease;
+}
+#loading.hidden{opacity:0;pointer-events:none}
+#loading p{margin-top:16px;font-size:14px;opacity:.7}
+
+.loader{
+  width:36px;height:36px;
+  border:3px solid rgba(255,255,255,.15);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toolbar */
+#toolbar{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  display:flex;
+  justify-content:space-around;
+  align-items:center;
+  padding:10px 6px;
+  padding-bottom:max(10px,env(safe-area-inset-bottom));
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  z-index:10;
+}
+
+#toolbar button{
+  width:46px;height:46px;
+  border:none;border-radius:50%;
+  background:rgba(255,255,255,.12);
+  color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:background .15s;
+  -webkit-tap-highlight-color:transparent;
+  outline:none;
+}
+#toolbar button:active{background:rgba(255,255,255,.28)}
+#toolbar button svg{width:20px;height:20px}
+
+/* FPS */
+#fps-counter{
+  position:fixed;top:8px;left:8px;
+  padding:2px 6px;
+  background:rgba(0,0,0,.5);
+  color:rgba(255,255,255,.6);
+  font-size:11px;
+  border-radius:4px;
+  z-index:10;
+  font-variant-numeric:tabular-nums;
+}
